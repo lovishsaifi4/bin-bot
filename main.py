@@ -43,7 +43,7 @@ async def process_bin(update: Update, bin_number: str) -> None:
         data = response.json()[0]
 
         def escape_md(text):
-            chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '}', '.', '!']
+            chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
             for char in chars:
                 text = str(text).replace(char, f'\{char}')
             return text
@@ -90,28 +90,25 @@ async def webhook(request: Request) -> Response:
 async def health(request: Request) -> Response:
     return Response(content="OK", status_code=200)
 
-# Starlette app for webhook
-routes = [
-    Route(f"/{TOKEN}", webhook, methods=["POST"]),
-    Route("/health", health, methods=["GET"])
-]
-app = Starlette(routes=routes)
-
 # Application setup
 application = Application.builder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("bin", check_bin_command))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_bin_message))
 
-# Set webhook on startup
-async def set_webhook():
+# Starlette app setup with startup event
+async def startup():
+    await application.initialize()  # Initialize the application
     await application.bot.set_webhook(url=WEBHOOK_URL)
     print(f"Webhook set to {WEBHOOK_URL}")
+
+routes = [
+    Route(f"/{TOKEN}", webhook, methods=["POST"]),
+    Route("/health", health, methods=["GET"])
+]
+app = Starlette(routes=routes, on_startup=[startup])
 
 # Run the application
 if __name__ == "__main__":
     import uvicorn
-    # Run the webhook setup as a one-time task
-    asyncio.run(set_webhook())
-    # Start the Starlette app
     uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
