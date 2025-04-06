@@ -9,6 +9,7 @@ from starlette.routing import Route
 import asyncio
 import logging
 import random
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,7 +21,7 @@ BIN_API_URL = "https://api.api-ninjas.com/v1/bin?bin={}"
 API_KEY = "lQiHO34dFj8jY4xYNacj3g==oyNatSR2JdLDlWLw"
 WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL", f"https://bin-bot-kqa8.onrender.com") + f"/{TOKEN}"
 
-# Luhn algorithm to generate valid CC numbers
+# Luhn algorithm for CC generation
 def luhn_checksum(card_number):
     def digits_of(n):
         return [int(d) for d in str(n)]
@@ -32,28 +33,37 @@ def luhn_checksum(card_number):
         checksum += sum(digits_of(d * 2))
     return checksum % 10
 
-def generate_cc(bin_number, count=5):
-    bin_number = bin_number[:6]  # Ensure BIN is 6 digits
+def generate_cc(bin_number, count=10):
+    bin_number = bin_number[:6]
     generated_cards = []
+    current_year = datetime.now().year
     for _ in range(count):
         remaining = ''.join([str(random.randint(0, 9)) for _ in range(10)])
         card = bin_number + remaining
         check_sum = luhn_checksum(int(card + "0"))
         check_digit = (10 - check_sum) % 10
         full_card = card + str(check_digit)
-        generated_cards.append(full_card)
+        
+        # Generate MM, YYYY, CVV
+        month = f"{random.randint(1, 12):02d}"  # 01-12
+        year = str(random.randint(current_year + 1, current_year + 5))  # Next 5 years
+        cvv = f"{random.randint(0, 999):03d}"  # 000-999
+        
+        generated_cards.append(f"{full_card}|{month}|{year}|{cvv}")
     return generated_cards
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Welcome to BIN Checker Bot!\n"
-        "Use /bin or .bin <BIN> to check a BIN\n"
-        "Use /gen or .gen <BIN> to generate CC combinations"
+        "👋 *Welcome to BIN Checker Bot!*\n"
+        "🔍 Use `/bin` or `.bin <BIN>` to check a BIN\n"
+        "💳 Use `/gen` or `.gen <BIN>` to generate CC combinations\n"
+        "ℹ️ Example: `.bin 453201` or `.gen 453201`",
+        parse_mode="MarkdownV2"
     )
 
 async def check_bin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
-        await update.message.reply_text("Please provide a BIN number. Usage: /bin <BIN>")
+        await update.message.reply_text("❌ Please provide a BIN number. Usage: /bin <BIN>")
         return
     bin_number = context.args[0][:6]
     await process_bin(update, bin_number)
@@ -63,13 +73,13 @@ async def check_bin_message(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if message_text.startswith(".bin"):
         bin_number = message_text.replace(".bin", "").strip()[:6]
         if not (bin_number.isdigit() and len(bin_number) >= 6):
-            await update.message.reply_text("Invalid BIN. Use .bin followed by a 6-digit number.")
+            await update.message.reply_text("❌ Invalid BIN. Use .bin followed by a 6-digit number.")
             return
         await process_bin(update, bin_number)
 
 async def generate_cc_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
-        await update.message.reply_text("Please provide a BIN number. Usage: /gen <BIN>")
+        await update.message.reply_text("❌ Please provide a BIN number. Usage: /gen <BIN>")
         return
     bin_number = context.args[0][:6]
     await generate_cc_process(update, bin_number)
@@ -79,7 +89,7 @@ async def generate_cc_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     if message_text.startswith(".gen"):
         bin_number = message_text.replace(".gen", "").strip()[:6]
         if not (bin_number.isdigit() and len(bin_number) >= 6):
-            await update.message.reply_text("Invalid BIN. Use .gen followed by a 6-digit number.")
+            await update.message.reply_text("❌ Invalid BIN. Use .gen followed by a 6-digit number.")
             return
         await generate_cc_process(update, bin_number)
 
@@ -99,7 +109,6 @@ async def process_bin(update: Update, bin_number: str) -> None:
                 text = str(text).replace(char, f'\{char}')
             return text
 
-        # Adjusted field names based on API Ninjas expected response
         brand = escape_md(data.get("brand", "Unknown")).capitalize()
         type_ = escape_md(data.get("type", "Unknown")).capitalize()
         bank = escape_md(data.get("bank", "Unknown"))
@@ -109,57 +118,53 @@ async def process_bin(update: Update, bin_number: str) -> None:
         flag = "".join([chr(0x1F1E6 + ord(c) - ord('a')) for c in country_code]) if country_code != "??" else "🌐"
 
         message = (
-            f"```\n"  # Start code block
-            f"📒 BIN: {bin_number}\n"
-            f"🏷️ Card Brand: {brand}\n"
-            f"💳 Card Type: {type_}\n"
-            f"🏦 Bank: {bank}\n"
-            f"{flag} Country: {country_name}\n"
-            f"✅ Bot by @Hellfirez3643\n"
-            f"```"  # End code block
+            f"```\n"
+            f"📒 *BIN*: {bin_number}\n"
+            f"🏷️ *Card Brand*: {brand}\n"
+            f"💳 *Card Type*: {type_}\n"
+            f"🏦 *Bank*: {bank}\n"
+            f"{flag} *Country*: {country_name}\n"
+            f"✅ *Bot by*: @Hellfirez3643\n"
+            f"```"
         )
         await update.message.reply_text(message, parse_mode="MarkdownV2")
     except requests.Timeout:
-        await update.message.reply_text("Request timed out. Please try again later.")
+        await update.message.reply_text("⏳ Request timed out. Please try again later.")
     except requests.RequestException as e:
         if response.status_code == 429:
-            await update.message.reply_text("Rate limit reached. Please wait and try again later.")
+            await update.message.reply_text("⏱️ Rate limit reached. Please wait and try again.")
         else:
-            await update.message.reply_text(f"Error checking BIN: {str(e)}")
+            await update.message.reply_text(f"❌ Error checking BIN: {str(e)}")
     except (ValueError, IndexError):
-        await update.message.reply_text("Invalid response from BIN API or BIN not found.")
+        await update.message.reply_text("❌ Invalid response from BIN API or BIN not found.")
     except Exception as e:
-        await update.message.reply_text(f"Unexpected error: {str(e)}")
+        await update.message.reply_text(f"❌ Unexpected error: {str(e)}")
 
 async def generate_cc_process(update: Update, bin_number: str) -> None:
     try:
         if not bin_number.isdigit() or len(bin_number) < 6:
-            await update.message.reply_text("Invalid BIN. Please provide a 6-digit number.")
+            await update.message.reply_text("❌ Invalid BIN. Please provide a 6-digit number.")
             return
         
-        # Generate 5 CC numbers
-        cc_numbers = generate_cc(bin_number, count=5)
+        cc_numbers = generate_cc(bin_number, count=10)
         
-        # Escape special characters in CC numbers
         def escape_md(text):
             chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
             for char in chars:
                 text = str(text).replace(char, f'\{char}')
             return text
 
-        # Format the message with proper MarkdownV2
         message = (
-            "```\n"  # Start code block
-            f"📒 BIN: {escape_md(bin_number)}\n"
-            "Generated Credit Card Numbers:\n" +
-            "\n".join([f"💳 {escape_md(cc)}" for cc in cc_numbers]) + "\n"
-            "⚠️ For testing purposes only\n"
-            "✅ Bot by @Hellfirez3643\n"
-            "```\n"  # End code block
+            f"```\n"
+            f"📒 *BIN*: {escape_md(bin_number)}\n"
+            f"💳 *Generated CC Numbers*:\n" +
+            "\n".join([f"  • {escape_md(cc)}" for cc in cc_numbers]) + "\n"
+            f"✅ *Bot by*: @Hellfirez3643\n"
+            f"```"
         )
         await update.message.reply_text(message, parse_mode="MarkdownV2")
     except Exception as e:
-        await update.message.reply_text(f"Error generating CC: {str(e)}")
+        await update.message.reply_text(f"❌ Error generating CC: {str(e)}")
 
 # Webhook handler
 async def webhook(request: Request) -> Response:
