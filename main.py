@@ -36,10 +36,8 @@ def generate_cc(bin_number, count=5):
     bin_number = bin_number[:6]  # Ensure BIN is 6 digits
     generated_cards = []
     for _ in range(count):
-        # Generate remaining digits (16-digit card typically)
         remaining = ''.join([str(random.randint(0, 9)) for _ in range(10)])
         card = bin_number + remaining
-        # Calculate Luhn check digit
         check_sum = luhn_checksum(int(card + "0"))
         check_digit = (10 - check_sum) % 10
         full_card = card + str(check_digit)
@@ -94,14 +92,16 @@ async def process_bin(update: Update, bin_number: str) -> None:
         logger.info(f"API Response for BIN {bin_number}: {data}")
 
         def escape_md(text):
+            if not text:
+                return "Unknown"
             chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
             for char in chars:
                 text = str(text).replace(char, f'\{char}')
             return text
 
-        # Adjusted field names based on typical API Ninjas response
-        brand = escape_md(data.get("brand", "Unknown").capitalize())
-        type_ = escape_md(data.get("type", "Unknown").capitalize())
+        # Adjusted field names based on API Ninjas expected response
+        brand = escape_md(data.get("brand", "Unknown")).capitalize()
+        type_ = escape_md(data.get("type", "Unknown")).capitalize()
         bank = escape_md(data.get("bank", "Unknown"))
         country_name = escape_md(data.get("country", "Unknown"))
         country_code = data.get("country_code", "??").lower()
@@ -109,14 +109,14 @@ async def process_bin(update: Update, bin_number: str) -> None:
         flag = "".join([chr(0x1F1E6 + ord(c) - ord('a')) for c in country_code]) if country_code != "??" else "🌐"
 
         message = (
-            f"```\n"
+            f"```\n"  # Start code block
             f"📒 BIN: {bin_number}\n"
             f"🏷️ Card Brand: {brand}\n"
             f"💳 Card Type: {type_}\n"
             f"🏦 Bank: {bank}\n"
             f"{flag} Country: {country_name}\n"
             f"✅ Bot by @Hellfirez3643\n"
-            f"```"
+            f"```"  # End code block
         )
         await update.message.reply_text(message, parse_mode="MarkdownV2")
     except requests.Timeout:
@@ -140,14 +140,22 @@ async def generate_cc_process(update: Update, bin_number: str) -> None:
         # Generate 5 CC numbers
         cc_numbers = generate_cc(bin_number, count=5)
         
+        # Escape special characters in CC numbers
+        def escape_md(text):
+            chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+            for char in chars:
+                text = str(text).replace(char, f'\{char}')
+            return text
+
+        # Format the message with proper MarkdownV2
         message = (
-            f"```\n"
-            f"📒 BIN: {bin_number}\n"
-            f"Generated Credit Card Numbers:\n"
-            "\n".join([f"💳 {cc}" for cc in cc_numbers]) + "\n"
-            f"⚠️ For testing purposes only\n"
-            f"✅ Bot by @Hellfirez3643\n"
-            f"```"
+            "```\n"  # Start code block
+            f"📒 BIN: {escape_md(bin_number)}\n"
+            "Generated Credit Card Numbers:\n" +
+            "\n".join([f"💳 {escape_md(cc)}" for cc in cc_numbers]) + "\n"
+            "⚠️ For testing purposes only\n"
+            "✅ Bot by @Hellfirez3643\n"
+            "```\n"  # End code block
         )
         await update.message.reply_text(message, parse_mode="MarkdownV2")
     except Exception as e:
