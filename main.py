@@ -44,22 +44,23 @@ def generate_cc(bin_number, count=10):
         check_digit = (10 - check_sum) % 10
         full_card = card + str(check_digit)
         
-        # Generate MM, YYYY, CVV
-        month = f"{random.randint(1, 12):02d}"  # 01-12
-        year = str(random.randint(current_year + 1, current_year + 5))  # Next 5 years
-        cvv = f"{random.randint(0, 999):03d}"  # 000-999
+        month = f"{random.randint(1, 12):02d}"
+        year = str(random.randint(current_year + 1, current_year + 5))
+        cvv = f"{random.randint(0, 999):03d}"
         
         generated_cards.append(f"{full_card}|{month}|{year}|{cvv}")
     return generated_cards
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        "👋 *Welcome to BIN Checker Bot!*\n"
-        "🔍 Use `/bin` or `.bin <BIN>` to check a BIN\n"
-        "💳 Use `/gen` or `.gen <BIN>` to generate CC combinations\n"
-        "ℹ️ Example: `.bin 453201` or `.gen 453201`",
-        parse_mode="MarkdownV2"
+    welcome_message = (
+        "Welcome 🔥\n"
+        "✨This bot was created by @Hellfirez3643\n"
+        "🤩This bot can generate cards and check bins.\n"
+        "✅Use .gen for generating cards. Format : .gen 424242\n"
+        "✅Use .bin for getting bin info. Format: .bin 424242\n"
+        "⚠️Join @VengeanceSeekers for future projects and updates. We have something you can even imagine and something you will remain unaware of forever."
     )
+    await update.message.reply_text(welcome_message)
 
 async def check_bin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
@@ -146,23 +147,47 @@ async def generate_cc_process(update: Update, bin_number: str) -> None:
             await update.message.reply_text("❌ Invalid BIN. Please provide a 6-digit number.")
             return
         
-        cc_numbers = generate_cc(bin_number, count=10)
-        
+        # Fetch country info from API
+        headers = {"X-Api-Key": API_KEY}
+        response = requests.get(BIN_API_URL.format(bin_number), headers=headers, timeout=5)
+        response.raise_for_status()
+        data = response.json()[0]
+        logger.info(f"API Response for BIN {bin_number} (gen): {data}")
+
         def escape_md(text):
+            if not text:
+                return "Unknown"
             chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
             for char in chars:
                 text = str(text).replace(char, f'\{char}')
             return text
 
+        country_name = escape_md(data.get("country", "Unknown"))
+        country_code = data.get("country_code", "??").lower()
+        flag = "".join([chr(0x1F1E6 + ord(c) - ord('a')) for c in country_code]) if country_code != "??" else "🌐"
+
+        # Generate CC numbers
+        cc_numbers = generate_cc(bin_number, count=10)
+
         message = (
             f"```\n"
             f"📒 *BIN*: {escape_md(bin_number)}\n"
+            f"{flag} *Country*: {country_name}\n"
             f"💳 *Generated CC Numbers*:\n" +
             "\n".join([f"  • {escape_md(cc)}" for cc in cc_numbers]) + "\n"
             f"✅ *Bot by*: @Hellfirez3643\n"
             f"```"
         )
         await update.message.reply_text(message, parse_mode="MarkdownV2")
+    except requests.Timeout:
+        await update.message.reply_text("⏳ Request timed out. Please try again later.")
+    except requests.RequestException as e:
+        if response.status_code == 429:
+            await update.message.reply_text("⏱️ Rate limit reached. Please wait and try again.")
+        else:
+            await update.message.reply_text(f"❌ Error generating CC: {str(e)}")
+    except (ValueError, IndexError):
+        await update.message.reply_text("❌ Invalid response from BIN API or BIN not found.")
     except Exception as e:
         await update.message.reply_text(f"❌ Error generating CC: {str(e)}")
 
