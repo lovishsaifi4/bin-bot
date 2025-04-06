@@ -8,6 +8,7 @@ from starlette.responses import Response
 from starlette.routing import Route
 import asyncio
 import logging
+import random
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,9 +20,37 @@ BIN_API_URL = "https://api.api-ninjas.com/v1/bin?bin={}"
 API_KEY = "lQiHO34dFj8jY4xYNacj3g==oyNatSR2JdLDlWLw"
 WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL", f"https://bin-bot-kqa8.onrender.com") + f"/{TOKEN}"
 
+# Luhn algorithm to generate valid CC numbers
+def luhn_checksum(card_number):
+    def digits_of(n):
+        return [int(d) for d in str(n)]
+    digits = digits_of(card_number)
+    odd_digits = digits[-1::-2]
+    even_digits = digits[-2::-2]
+    checksum = sum(odd_digits)
+    for d in even_digits:
+        checksum += sum(digits_of(d * 2))
+    return checksum % 10
+
+def generate_cc(bin_number, count=5):
+    bin_number = bin_number[:6]  # Ensure BIN is 6 digits
+    generated_cards = []
+    for _ in range(count):
+        # Generate remaining digits (16-digit card typically)
+        remaining = ''.join([str(random.randint(0, 9)) for _ in range(10)])
+        card = bin_number + remaining
+        # Calculate Luhn check digit
+        check_sum = luhn_checksum(int(card + "0"))
+        check_digit = (10 - check_sum) % 10
+        full_card = card + str(check_digit)
+        generated_cards.append(full_card)
+    return generated_cards
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Welcome to BIN Checker Bot! Use /bin or .bin <BIN> (e.g., /bin 123456 or .bin 412345)"
+        "Welcome to BIN Checker Bot!\n"
+        "Use /bin or .bin <BIN> to check a BIN\n"
+        "Use /gen or .gen <BIN> to generate CC combinations"
     )
 
 async def check_bin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -40,13 +69,29 @@ async def check_bin_message(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             return
         await process_bin(update, bin_number)
 
+async def generate_cc_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not context.args:
+        await update.message.reply_text("Please provide a BIN number. Usage: /gen <BIN>")
+        return
+    bin_number = context.args[0][:6]
+    await generate_cc_process(update, bin_number)
+
+async def generate_cc_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message_text = update.message.text
+    if message_text.startswith(".gen"):
+        bin_number = message_text.replace(".gen", "").strip()[:6]
+        if not (bin_number.isdigit() and len(bin_number) >= 6):
+            await update.message.reply_text("Invalid BIN. Use .gen followed by a 6-digit number.")
+            return
+        await generate_cc_process(update, bin_number)
+
 async def process_bin(update: Update, bin_number: str) -> None:
     try:
         headers = {"X-Api-Key": API_KEY}
         response = requests.get(BIN_API_URL.format(bin_number), headers=headers, timeout=5)
         response.raise_for_status()
-        data = response.json()[0]  # API returns a list, take first item
-        logger.info(f"API Response for BIN {bin_number}: {data}")  # Log the raw response
+        data = response.json()[0]
+        logger.info(f"API Response for BIN {bin_number}: {data}")
 
         def escape_md(text):
             chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
@@ -54,8 +99,8 @@ async def process_bin(update: Update, bin_number: str) -> None:
                 text = str(text).replace(char, f'\{char}')
             return text
 
-        # Adjust field names based on API response (to be confirmed)
-        brand = escape_md(data.get("scheme", "Unknown").capitalize())
+        # Adjusted field names based on typical API Ninjas response
+        brand = escape_md(data.get("brand", "Unknown").capitalize())
         type_ = escape_md(data.get("type", "Unknown").capitalize())
         bank = escape_md(data.get("bank", "Unknown"))
         country_name = escape_md(data.get("country", "Unknown"))
@@ -86,6 +131,28 @@ async def process_bin(update: Update, bin_number: str) -> None:
     except Exception as e:
         await update.message.reply_text(f"Unexpected error: {str(e)}")
 
+async def generate_cc_process(update: Update, bin_number: str) -> None:
+    try:
+        if not bin_number.isdigit() or len(bin_number) < 6:
+            await update.message.reply_text("Invalid BIN. Please provide a 6-digit number.")
+            return
+        
+        # Generate 5 CC numbers
+        cc_numbers = generate_cc(bin_number, count=5)
+        
+        message = (
+            f"```\n"
+            f"📒 BIN: {bin_number}\n"
+            f"Generated Credit Card Numbers:\n"
+            "\n".join([f"💳 {cc}" for cc in cc_numbers]) + "\n"
+            f"⚠️ For testing purposes only\n"
+            f"✅ Bot by @Hellfirez3643\n"
+            f"```"
+        )
+        await update.message.reply_text(message, parse_mode="MarkdownV2")
+    except Exception as e:
+        await update.message.reply_text(f"Error generating CC: {str(e)}")
+
 # Webhook handler
 async def webhook(request: Request) -> Response:
     update = Update.de_json(await request.json(), application.bot)
@@ -101,7 +168,8 @@ async def health(request: Request) -> Response:
 application = Application.builder().token(TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("bin", check_bin_command))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_bin_message))
+application.add_handler(CommandHandler("gen", generate_cc_command))
+application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda update, context: check_bin_message(update, context) if update.message.text.startswith(".bin") else generate_cc_message(update, context)))
 
 # Startup and shutdown for Starlette
 async def startup():
