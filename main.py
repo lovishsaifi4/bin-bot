@@ -7,12 +7,17 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.routing import Route
 import asyncio
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Configuration
 TOKEN = os.getenv("TOKEN", "7881163673:AAExCe9WYE4RqsKK67XauK4GG2ktfY9C6lk")
 BIN_API_URL = "https://api.api-ninjas.com/v1/bin?bin={}"
 API_KEY = "lQiHO34dFj8jY4xYNacj3g==oyNatSR2JdLDlWLw"
-WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL", f"https://your-service-name.onrender.com") + f"/{TOKEN}"
+WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL", f"https://bin-bot-kqa8.onrender.com") + f"/{TOKEN}"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
@@ -40,7 +45,8 @@ async def process_bin(update: Update, bin_number: str) -> None:
         headers = {"X-Api-Key": API_KEY}
         response = requests.get(BIN_API_URL.format(bin_number), headers=headers, timeout=5)
         response.raise_for_status()
-        data = response.json()[0]
+        data = response.json()[0]  # API returns a list, take first item
+        logger.info(f"API Response for BIN {bin_number}: {data}")  # Log the raw response
 
         def escape_md(text):
             chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
@@ -48,6 +54,7 @@ async def process_bin(update: Update, bin_number: str) -> None:
                 text = str(text).replace(char, f'\{char}')
             return text
 
+        # Adjust field names based on API response (to be confirmed)
         brand = escape_md(data.get("scheme", "Unknown").capitalize())
         type_ = escape_md(data.get("type", "Unknown").capitalize())
         bank = escape_md(data.get("bank", "Unknown"))
@@ -96,17 +103,23 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("bin", check_bin_command))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, check_bin_message))
 
-# Starlette app setup with startup event
+# Startup and shutdown for Starlette
 async def startup():
-    await application.initialize()  # Initialize the application
+    await application.initialize()
+    await application.start()
     await application.bot.set_webhook(url=WEBHOOK_URL)
-    print(f"Webhook set to {WEBHOOK_URL}")
+    logger.info(f"Webhook set to {WEBHOOK_URL}")
 
+async def shutdown():
+    await application.stop()
+    await application.shutdown()
+
+# Starlette app setup
 routes = [
     Route(f"/{TOKEN}", webhook, methods=["POST"]),
     Route("/health", health, methods=["GET"])
 ]
-app = Starlette(routes=routes, on_startup=[startup])
+app = Starlette(routes=routes, on_startup=[startup], on_shutdown=[shutdown])
 
 # Run the application
 if __name__ == "__main__":
