@@ -57,38 +57,143 @@ async def homepage(request: Request) -> HTMLResponse:
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>BIN Checker & Generator</title>
+        <title>🔥 BIN Checker & Generator 🔥</title>
         <style>
-            body { font-family: Arial, sans-serif; margin: 20px; text-align: center; background-color: #f0f0f0; }
-            h1 { color: #333; }
-            .container { max-width: 600px; margin: 0 auto; }
-            input { padding: 8px; width: 200px; margin: 10px; }
-            button { padding: 8px 16px; margin: 5px; background-color: #007bff; color: white; border: none; cursor: pointer; }
-            button:hover { background-color: #0056b3; }
-            pre { text-align: left; background-color: #fff; padding: 10px; border: 1px solid #ddd; max-height: 400px; overflow-y: auto; }
-            .promo { margin-top: 20px; padding: 15px; background-color: #fff; border: 1px solid #ddd; border-radius: 5px; }
-            .promo h2 { color: #007bff; margin-bottom: 10px; }
-            .promo p { margin: 5px 0; }
-            .promo a { color: #007bff; text-decoration: none; }
-            .promo a:hover { text-decoration: underline; }
-            .footer { font-size: 12px; color: #666; margin-top: 10px; }
+            body {
+                font-family: 'Arial', sans-serif;
+                margin: 0;
+                padding: 20px;
+                background: linear-gradient(135deg, #1e3c72, #2a5298);
+                color: #fff;
+                text-align: center;
+            }
+            .container {
+                max-width: 700px;
+                margin: 0 auto;
+                background: rgba(255, 255, 255, 0.1);
+                padding: 20px;
+                border-radius: 15px;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+                backdrop-filter: blur(5px);
+            }
+            h1 {
+                font-size: 2.5em;
+                margin: 0;
+                text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            }
+            h1 span { color: #ffdd57; }
+            p { font-size: 1.1em; margin: 10px 0; }
+            input {
+                padding: 12px;
+                width: 220px;
+                border: none;
+                border-radius: 25px;
+                font-size: 1em;
+                margin: 15px 0;
+                box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.1);
+                transition: all 0.3s ease;
+            }
+            input:focus {
+                outline: none;
+                box-shadow: 0 0 10px #ffdd57;
+            }
+            .button-group {
+                display: flex;
+                justify-content: center;
+                gap: 15px;
+            }
+            button {
+                padding: 12px 25px;
+                font-size: 1em;
+                border: none;
+                border-radius: 25px;
+                background: #ff6f61;
+                color: white;
+                cursor: pointer;
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            }
+            button:hover {
+                transform: scale(1.1);
+                box-shadow: 0 6px 15px rgba(255, 111, 97, 0.5);
+            }
+            button:active {
+                transform: scale(0.95);
+            }
+            pre {
+                text-align: left;
+                background: rgba(255, 255, 255, 0.9);
+                color: #333;
+                padding: 15px;
+                border-radius: 10px;
+                max-height: 350px;
+                overflow-y: auto;
+                box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+                margin: 20px 0;
+            }
+            .promo {
+                margin-top: 30px;
+                padding: 20px;
+                background: rgba(255, 255, 255, 0.15);
+                border-radius: 10px;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            }
+            .promo h2 {
+                font-size: 1.8em;
+                color: #ffdd57;
+                margin-bottom: 10px;
+                text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.2);
+            }
+            .promo p {
+                font-size: 1em;
+                line-height: 1.5;
+            }
+            .promo a {
+                color: #ffdd57;
+                text-decoration: none;
+                font-weight: bold;
+                position: relative;
+                transition: all 0.3s ease;
+            }
+            .promo a::after {
+                content: '';
+                position: absolute;
+                width: 0;
+                height: 2px;
+                bottom: -5px;
+                left: 0;
+                background: #ffdd57;
+                transition: width 0.3s ease;
+            }
+            .promo a:hover::after {
+                width: 100%;
+            }
+            .promo a:hover {
+                color: #fff;
+            }
+            .footer {
+                font-size: 0.9em;
+                color: #ddd;
+                margin-top: 15px;
+            }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>BIN Checker & Generator</h1>
-            <p>Enter a 6-digit BIN below:</p>
+            <h1>🔍 BIN <span>Checker</span> & <span>Generator</span> 💳</h1>
+            <p>✨ Enter a 6-digit BIN to explore its secrets or generate cards! ✨</p>
             <input type="text" id="binInput" placeholder="e.g., 424242" maxlength="6">
-            <br>
-            <button onclick="checkBin()">Check BIN</button>
-            <button onclick="generateCC()">Generate CC</button>
-            <pre id="output">Results will appear here...</pre>
+            <div class="button-group">
+                <button onclick="checkBin()">🔎 Check BIN</button>
+                <button onclick="generateCC()">🎲 Generate CC</button>
+            </div>
+            <pre id="output">Results will appear here... 🚀</pre>
 
             <div class="promo">
-                <h2>Join @VengeanceSeekers</h2>
-                <p>Explore a world of cutting-edge projects and exclusive updates at <a href="https://t.me/VengeanceSeekers" target="_blank">@VengeanceSeekers</a>. We bring you innovations you can imagine and mysteries that will captivate you forever.</p>
-                <p>Created by: <a href="https://t.me/Hellfirez3643" target="_blank">@Hellfirez3643</a></p>
-                <p class="footer">© 2025 VengeanceSeekers. All rights reserved.</p>
+                <h2>🌟 Join @VengeanceSeekers 🌟</h2>
+                <p>🔥 Dive into a universe of cutting-edge projects and exclusive updates at <a href="https://t.me/VengeanceSeekers" target="_blank">@VengeanceSeekers</a>. We craft innovations that spark your imagination and unveil mysteries that captivate you forever.</p>
+                <p>🧠 Created by: <a href="https://t.me/Hellfirez3643" target="_blank">@Hellfirez3643</a></p>
+                <p class="footer">© 2025 VengeanceSeekers. All Rights Reserved.</p>
             </div>
         </div>
         <script>
@@ -104,7 +209,7 @@ async def homepage(request: Request) -> HTMLResponse:
             async function checkBin() {
                 const bin = document.getElementById('binInput').value;
                 if (!/^\d{6}$/.test(bin)) {
-                    document.getElementById('output').innerText = "Please enter a valid 6-digit BIN.";
+                    document.getElementById('output').innerText = "⚠️ Please enter a valid 6-digit BIN.";
                     return;
                 }
                 const result = await fetchData('/check_bin', bin);
@@ -114,7 +219,7 @@ async def homepage(request: Request) -> HTMLResponse:
             async function generateCC() {
                 const bin = document.getElementById('binInput').value;
                 if (!/^\d{6}$/.test(bin)) {
-                    document.getElementById('output').innerText = "Please enter a valid 6-digit BIN.";
+                    document.getElementById('output').innerText = "⚠️ Please enter a valid 6-digit BIN.";
                     return;
                 }
                 const result = await fetchData('/generate_cc', bin);
@@ -268,7 +373,7 @@ async def process_bin(update: Update, bin_number: str) -> None:
         await update.message.reply_text("⏳ Request timed out. Please try again later.")
     except requests.RequestException as e:
         if response.status_code == 429:
-            await update.message.reply_text("⏱️ Rate limit reached. Please wait and try again.")
+            await update.message.reply_text("⏱️ Rate limit reached. Please try again later.")
         else:
             await update.message.reply_text(f"❌ Error checking BIN: {str(e)}")
     except (ValueError, IndexError):
@@ -315,13 +420,13 @@ async def generate_cc_process(update: Update, bin_number: str) -> None:
         await update.message.reply_text("⏳ Request timed out. Please try again later.")
     except requests.RequestException as e:
         if response.status_code == 429:
-            await update.message.reply_text("⏱️ Rate limit reached. Please wait and try again.")
+            await update.message.reply_text("⏱️ Rate limit reached. Please try again later.")
         else:
             await update.message.reply_text(f"❌ Error generating CC: {str(e)}")
     except (ValueError, IndexError):
         await update.message.reply_text("❌ Invalid response from BIN API or BIN not found.")
     except Exception as e:
-        await update.message.reply_text(f"❌ Error generating CC: {str(e)}")
+        await update.message.reply_text(f"❌ Unexpected error: {str(e)}")
 
 # Webhook handler
 async def webhook(request: Request) -> Response:
