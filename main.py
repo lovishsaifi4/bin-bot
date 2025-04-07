@@ -66,6 +66,12 @@ async def homepage(request: Request) -> HTMLResponse:
             button { padding: 8px 16px; margin: 5px; background-color: #007bff; color: white; border: none; cursor: pointer; }
             button:hover { background-color: #0056b3; }
             pre { text-align: left; background-color: #fff; padding: 10px; border: 1px solid #ddd; max-height: 400px; overflow-y: auto; }
+            .promo { margin-top: 20px; padding: 15px; background-color: #fff; border: 1px solid #ddd; border-radius: 5px; }
+            .promo h2 { color: #007bff; margin-bottom: 10px; }
+            .promo p { margin: 5px 0; }
+            .promo a { color: #007bff; text-decoration: none; }
+            .promo a:hover { text-decoration: underline; }
+            .footer { font-size: 12px; color: #666; margin-top: 10px; }
         </style>
     </head>
     <body>
@@ -77,6 +83,13 @@ async def homepage(request: Request) -> HTMLResponse:
             <button onclick="checkBin()">Check BIN</button>
             <button onclick="generateCC()">Generate CC</button>
             <pre id="output">Results will appear here...</pre>
+
+            <div class="promo">
+                <h2>Join @VengeanceSeekers</h2>
+                <p>Explore a world of cutting-edge projects and exclusive updates at <a href="https://t.me/VengeanceSeekers" target="_blank">@VengeanceSeekers</a>. We bring you innovations you can imagine and mysteries that will captivate you forever.</p>
+                <p>Created by: <a href="https://t.me/Hellfirez3643" target="_blank">@Hellfirez3643</a></p>
+                <p class="footer">© 2025 VengeanceSeekers. All rights reserved.</p>
+            </div>
         </div>
         <script>
             async function fetchData(endpoint, bin) {
@@ -139,8 +152,7 @@ async def check_bin_web(request: Request) -> Response:
             f"Card Brand: {brand}\n"
             f"Card Type: {type_}\n"
             f"Bank: {bank}\n"
-            f"{flag} Country: {country_name}\n"
-            f"Bot by: @Hellfirez3643"
+            f"{flag} Country: {country_name}"
         )
         return Response(content=result, status_code=200)
     except Exception as e:
@@ -168,8 +180,7 @@ async def generate_cc_web(request: Request) -> Response:
             f"BIN: {bin_number}\n"
             f"{flag} Country: {country_name}\n"
             f"Generated CC Numbers:\n" +
-            "\n".join([f"  • {cc}" for cc in cc_numbers]) + "\n"
-            f"Bot by: @Hellfirez3643"
+            "\n".join([f"{cc}" for cc in cc_numbers])
         )
         return Response(content=result, status_code=200)
     except Exception as e:
@@ -341,7 +352,7 @@ async def shutdown():
     await application.stop()
     await application.shutdown()
 
-# Starlette app setup with new routes
+# Starlette app setup with routes
 routes = [
     Route("/", homepage, methods=["GET"]),
     Route("/check_bin", check_bin_web, methods=["POST"]),
