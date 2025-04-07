@@ -1,7 +1,6 @@
 import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-import requests
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import Response, HTMLResponse
@@ -10,18 +9,32 @@ import asyncio
 import logging
 import random
 from datetime import datetime
+import sqlite3
+import glob
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Configuration
-TOKEN = os.getenv("TOKEN")  # Load from environment
-BIN_API_URL = "https://api.api-ninjas.com/v1/bin?bin={}"
-API_KEY = "lQiHO34dFj8jY4xYNacj3g==oyNatSR2JdLDlWLw"
+TOKEN = os.getenv("TOKEN")
 WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL", f"https://bin-bot-kqa8.onrender.com") + f"/{TOKEN}"
+BIN_DB_DIR = os.path.join(os.path.dirname(__file__), "bin_dbs")  # Folder for DB files
 
-# Country flags from provided script
+# Load all SQLite database files
+DB_FILES = glob.glob(os.path.join(BIN_DB_DIR, "bin_database_part_*.db"))
+if not DB_FILES:
+    logger.error("No BIN database files found!")
+else:
+    logger.info(f"Found {len(DB_FILES)} database files: {DB_FILES}")
+
+# Connect to a specific SQLite database
+def get_db_connection(db_file):
+    conn = sqlite3.connect(db_file)
+    conn.row_factory = sqlite3.Row  # Lets us use column names
+    return conn
+
+# Country flags
 COUNTRY_FLAGS = {
     "FRANCE": "🇫🇷", "UNITED STATES": "🇺🇸", "BRAZIL": "🇧🇷", "NAMIBIA": "🇳🇦",
     "INDIA": "🇮🇳", "GERMANY": "🇩🇪", "THAILAND": "🇹🇭", "MEXICO": "🇲🇽", "RUSSIA": "🇷🇺",
@@ -55,7 +68,20 @@ def generate_cc(bin_number, count=10):
         generated_cards.append(f"{full_card}|{month}|{year}|{cvv}")
     return generated_cards
 
-# Webpage HTML
+# Check BIN across all database files
+def check_bin(bin_number):
+    bin_number = bin_number[:6]
+    for db_file in DB_FILES:
+        conn = get_db_connection(db_file)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM bins WHERE BIN = ?", (bin_number,))
+        result = cursor.fetchone()
+        conn.close()
+        if result:
+            return dict(result)
+    return None
+
+# Webpage HTML (unchanged)
 async def homepage(request: Request) -> HTMLResponse:
     html_content = """
     <!DOCTYPE html>
@@ -237,41 +263,27 @@ async def homepage(request: Request) -> HTMLResponse:
     """
     return HTMLResponse(content=html_content)
 
-# Web endpoints for BIN check and CC generation
+# Web endpoints
 async def check_bin_web(request: Request) -> Response:
     body = await request.json()
     bin_number = body.get("bin", "")[:6]
     if not bin_number.isdigit() or len(bin_number) < 6:
         return Response(content="Invalid BIN. Please provide a 6-digit number.", status_code=400)
     
-    try:
-        headers = {"X-Api-Key": API_KEY}
-        response = requests.get(BIN_API_URL.format(bin_number), headers=headers, timeout=5)
-        response.raise_for_status()
-        data = response.json()[0]
-        logger.info(f"API Response for BIN {bin_number} (web): {data}")
-
-        brand = data.get("brand", "Unknown").capitalize()
-        type_ = data.get("type", "Unknown").capitalize()
-        bank = data.get("bank", "Unknown")
-        country_name = data.get("country", "Unknown").upper()
-        country_code = data.get("country_code", "??").lower()
-        scheme = data.get("scheme", "Unknown").capitalize()  # From provided script
-        tier = data.get("tier", "Unknown").capitalize()      # From provided script
-        flag = COUNTRY_FLAGS.get(country_name, "🌐")
-
+    bin_data = check_bin(bin_number)
+    if bin_data:
+        flag = COUNTRY_FLAGS.get(bin_data["CountryName"], "🌐")
         result = (
             f"BIN: {bin_number}\n"
-            f"Card Brand: {brand}\n"
-            f"Card Type: {type_}\n"
-            f"Network: {scheme}\n"
-            f"Tier: {tier}\n"
-            f"Bank: {bank}\n"
-            f"{flag} Country: {country_name}"
+            f"Card Brand: {bin_data['Brand'].capitalize()}\n"
+            f"Card Type: {bin_data['Type'].capitalize()}\n"
+            f"Network: {bin_data['Brand'].capitalize()}\n"
+            f"Tier: {bin_data['Category'].capitalize() or 'Unknown'}\n"
+            f"Bank: {bin_data['Issuer'] or 'Unknown'}\n"
+            f"{flag} Country: {bin_data['CountryName']}"
         )
         return Response(content=result, status_code=200)
-    except Exception as e:
-        return Response(content=f"Error: {str(e)}", status_code=500)
+    return Response(content=f"BIN {bin_number} not found in database", status_code=404)
 
 async def generate_cc_web(request: Request) -> Response:
     body = await request.json()
@@ -279,27 +291,18 @@ async def generate_cc_web(request: Request) -> Response:
     if not bin_number.isdigit() or len(bin_number) < 6:
         return Response(content="Invalid BIN. Please provide a 6-digit number.", status_code=400)
     
-    try:
-        headers = {"X-Api-Key": API_KEY}
-        response = requests.get(BIN_API_URL.format(bin_number), headers=headers, timeout=5)
-        response.raise_for_status()
-        data = response.json()[0]
-        logger.info(f"API Response for BIN {bin_number} (web gen): {data}")
-
-        country_name = data.get("country", "Unknown").upper()
-        country_code = data.get("country_code", "??").lower()
-        flag = COUNTRY_FLAGS.get(country_name, "🌐")
+    bin_data = check_bin(bin_number)
+    if bin_data:
+        flag = COUNTRY_FLAGS.get(bin_data["CountryName"], "🌐")
         cc_numbers = generate_cc(bin_number, count=10)
-
         result = (
             f"BIN: {bin_number}\n"
-            f"{flag} Country: {country_name}\n"
+            f"{flag} Country: {bin_data['CountryName']}\n"
             f"Generated CC Numbers:\n" +
             "\n".join([f"{cc}" for cc in cc_numbers])
         )
         return Response(content=result, status_code=200)
-    except Exception as e:
-        return Response(content=f"Error: {str(e)}", status_code=500)
+    return Response(content=f"BIN {bin_number} not found in database", status_code=404)
 
 # Telegram bot handlers
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -309,7 +312,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         "🤩This bot can generate cards and check bins.\n"
         "✅Use .gen for generating cards. Format : .gen 424242\n"
         "✅Use .bin for getting bin info. Format: .bin 424242\n"
-        "⚠️Join @VengeanceSeekers for future projects and updates. We have something you can even imagine and something you will remain unaware of forever."
+        "⚠️Join @VengeanceSeekers for future projects and updates."
     )
     await update.message.reply_text(welcome_message)
 
@@ -346,13 +349,12 @@ async def generate_cc_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         await generate_cc_process(update, bin_number)
 
 async def process_bin(update: Update, bin_number: str) -> None:
-    try:
-        headers = {"X-Api-Key": API_KEY}
-        response = requests.get(BIN_API_URL.format(bin_number), headers=headers, timeout=5)
-        response.raise_for_status()
-        data = response.json()[0]
-        logger.info(f"API Response for BIN {bin_number}: {data}")
-
+    if not bin_number.isdigit() or len(bin_number) < 6:
+        await update.message.reply_text("❌ Invalid BIN. Please provide a 6-digit number.")
+        return
+    
+    bin_data = check_bin(bin_number)
+    if bin_data:
         def escape_md(text):
             if not text:
                 return "Unknown"
@@ -361,13 +363,12 @@ async def process_bin(update: Update, bin_number: str) -> None:
                 text = str(text).replace(char, f'\{char}')
             return text
 
-        brand = escape_md(data.get("brand", "Unknown")).capitalize()
-        type_ = escape_md(data.get("type", "Unknown")).capitalize()
-        bank = escape_md(data.get("bank", "Unknown"))
-        country_name = escape_md(data.get("country", "Unknown")).upper()
-        country_code = data.get("country_code", "??").lower()
-        scheme = escape_md(data.get("scheme", "Unknown")).capitalize()
-        tier = escape_md(data.get("tier", "Unknown")).capitalize()
+        brand = escape_md(bin_data["Brand"]).capitalize()
+        type_ = escape_md(bin_data["Type"]).capitalize()
+        bank = escape_md(bin_data["Issuer"] or "Unknown")
+        country_name = escape_md(bin_data["CountryName"]).upper()
+        scheme = escape_md(bin_data["Brand"]).capitalize()
+        tier = escape_md(bin_data["Category"] or "Unknown").capitalize()
         flag = COUNTRY_FLAGS.get(country_name, "🌐")
 
         message = (
@@ -383,30 +384,16 @@ async def process_bin(update: Update, bin_number: str) -> None:
             f"```\n"
         )
         await update.message.reply_text(message, parse_mode="MarkdownV2")
-    except requests.Timeout:
-        await update.message.reply_text("⏳ Request timed out. Please try again later.")
-    except requests.RequestException as e:
-        if response.status_code == 429:
-            await update.message.reply_text("⏱️ Rate limit reached. Please try again later.")
-        else:
-            await update.message.reply_text(f"❌ Error checking BIN: {str(e)}")
-    except (ValueError, IndexError):
-        await update.message.reply_text("❌ Invalid response from BIN API or BIN not found.")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Unexpected error: {str(e)}")
+    else:
+        await update.message.reply_text(f"❌ BIN {bin_number} not found in database")
 
 async def generate_cc_process(update: Update, bin_number: str) -> None:
-    try:
-        if not bin_number.isdigit() or len(bin_number) < 6:
-            await update.message.reply_text("❌ Invalid BIN. Please provide a 6-digit number.")
-            return
-        
-        headers = {"X-Api-Key": API_KEY}
-        response = requests.get(BIN_API_URL.format(bin_number), headers=headers, timeout=5)
-        response.raise_for_status()
-        data = response.json()[0]
-        logger.info(f"API Response for BIN {bin_number} (gen): {data}")
-
+    if not bin_number.isdigit() or len(bin_number) < 6:
+        await update.message.reply_text("❌ Invalid BIN. Please provide a 6-digit number.")
+        return
+    
+    bin_data = check_bin(bin_number)
+    if bin_data:
         def escape_md(text):
             if not text:
                 return "Unknown"
@@ -415,8 +402,7 @@ async def generate_cc_process(update: Update, bin_number: str) -> None:
                 text = str(text).replace(char, f'\{char}')
             return text
 
-        country_name = escape_md(data.get("country", "Unknown")).upper()
-        country_code = data.get("country_code", "??").lower()
+        country_name = escape_md(bin_data["CountryName"]).upper()
         flag = COUNTRY_FLAGS.get(country_name, "🌐")
         cc_numbers = generate_cc(bin_number, count=10)
 
@@ -430,17 +416,8 @@ async def generate_cc_process(update: Update, bin_number: str) -> None:
             f"```\n"
         )
         await update.message.reply_text(message, parse_mode="MarkdownV2")
-    except requests.Timeout:
-        await update.message.reply_text("⏳ Request timed out. Please try again later.")
-    except requests.RequestException as e:
-        if response.status_code == 429:
-            await update.message.reply_text("⏱️ Rate limit reached. Please try again later.")
-        else:
-            await update.message.reply_text(f"❌ Error generating CC: {str(e)}")
-    except (ValueError, IndexError):
-        await update.message.reply_text("❌ Invalid response from BIN API or BIN not found.")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Unexpected error: {str(e)}")
+    else:
+        await update.message.reply_text(f"❌ BIN {bin_number} not found in database")
 
 # Webhook handler
 async def webhook(request: Request) -> Response:
@@ -484,4 +461,5 @@ app = Starlette(routes=routes, on_startup=[startup], on_shutdown=[shutdown])
 # Run the application
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
