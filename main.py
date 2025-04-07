@@ -21,6 +21,12 @@ BIN_API_URL = "https://api.api-ninjas.com/v1/bin?bin={}"
 API_KEY = "lQiHO34dFj8jY4xYNacj3g==oyNatSR2JdLDlWLw"
 WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL", f"https://bin-bot-kqa8.onrender.com") + f"/{TOKEN}"
 
+# Country flags from provided script
+COUNTRY_FLAGS = {
+    "FRANCE": "🇫🇷", "UNITED STATES": "🇺🇸", "BRAZIL": "🇧🇷", "NAMIBIA": "🇳🇦",
+    "INDIA": "🇮🇳", "GERMANY": "🇩🇪", "THAILAND": "🇹🇭", "MEXICO": "🇲🇽", "RUSSIA": "🇷🇺",
+}
+
 # Luhn algorithm for CC generation
 def luhn_checksum(card_number):
     def digits_of(n):
@@ -248,14 +254,18 @@ async def check_bin_web(request: Request) -> Response:
         brand = data.get("brand", "Unknown").capitalize()
         type_ = data.get("type", "Unknown").capitalize()
         bank = data.get("bank", "Unknown")
-        country_name = data.get("country", "Unknown")
+        country_name = data.get("country", "Unknown").upper()
         country_code = data.get("country_code", "??").lower()
-        flag = "".join([chr(0x1F1E6 + ord(c) - ord('a')) for c in country_code]) if country_code != "??" else "🌐"
+        scheme = data.get("scheme", "Unknown").capitalize()  # From provided script
+        tier = data.get("tier", "Unknown").capitalize()      # From provided script
+        flag = COUNTRY_FLAGS.get(country_name, "🌐")
 
         result = (
             f"BIN: {bin_number}\n"
             f"Card Brand: {brand}\n"
             f"Card Type: {type_}\n"
+            f"Network: {scheme}\n"
+            f"Tier: {tier}\n"
             f"Bank: {bank}\n"
             f"{flag} Country: {country_name}"
         )
@@ -276,9 +286,9 @@ async def generate_cc_web(request: Request) -> Response:
         data = response.json()[0]
         logger.info(f"API Response for BIN {bin_number} (web gen): {data}")
 
-        country_name = data.get("country", "Unknown")
+        country_name = data.get("country", "Unknown").upper()
         country_code = data.get("country_code", "??").lower()
-        flag = "".join([chr(0x1F1E6 + ord(c) - ord('a')) for c in country_code]) if country_code != "??" else "🌐"
+        flag = COUNTRY_FLAGS.get(country_name, "🌐")
         cc_numbers = generate_cc(bin_number, count=10)
 
         result = (
@@ -354,15 +364,19 @@ async def process_bin(update: Update, bin_number: str) -> None:
         brand = escape_md(data.get("brand", "Unknown")).capitalize()
         type_ = escape_md(data.get("type", "Unknown")).capitalize()
         bank = escape_md(data.get("bank", "Unknown"))
-        country_name = escape_md(data.get("country", "Unknown"))
+        country_name = escape_md(data.get("country", "Unknown")).upper()
         country_code = data.get("country_code", "??").lower()
-        flag = "".join([chr(0x1F1E6 + ord(c) - ord('a')) for c in country_code]) if country_code != "??" else "🌐"
+        scheme = escape_md(data.get("scheme", "Unknown")).capitalize()
+        tier = escape_md(data.get("tier", "Unknown")).capitalize()
+        flag = COUNTRY_FLAGS.get(country_name, "🌐")
 
         message = (
             f"```\n"
             f"📒 *BIN*: {bin_number}\n"
             f"🏷️ *Card Brand*: {brand}\n"
             f"💳 *Card Type*: {type_}\n"
+            f"🌐 *Network*: {scheme}\n"
+            f"🎚️ *Tier*: {tier}\n"
             f"🏦 *Bank*: {bank}\n"
             f"{flag} *Country*: {country_name}\n"
             f"✅ *Bot by*: @Hellfirez3643\n"
@@ -401,9 +415,9 @@ async def generate_cc_process(update: Update, bin_number: str) -> None:
                 text = str(text).replace(char, f'\{char}')
             return text
 
-        country_name = escape_md(data.get("country", "Unknown"))
+        country_name = escape_md(data.get("country", "Unknown")).upper()
         country_code = data.get("country_code", "??").lower()
-        flag = "".join([chr(0x1F1E6 + ord(c) - ord('a')) for c in country_code]) if country_code != "??" else "🌐"
+        flag = COUNTRY_FLAGS.get(country_name, "🌐")
         cc_numbers = generate_cc(bin_number, count=10)
 
         message = (
