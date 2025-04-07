@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Configuration
-TOKEN = os.getenv("TOKEN", "7881163673:AAExCe9WYE4RqsKK67XauK4GG2ktfY9C6lk")
+TOKEN = os.getenv("TOKEN", "7881163673:AAGgNQwfX6MYMAyOKLrdZkp2hoDCLUa4OEU")  # New token
 BIN_API_URL = "https://api.api-ninjas.com/v1/bin?bin={}"
 API_KEY = "lQiHO34dFj8jY4xYNacj3g==oyNatSR2JdLDlWLw"
 WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL", f"https://bin-bot-kqa8.onrender.com") + f"/{TOKEN}"
@@ -126,108 +126,4 @@ async def process_bin(update: Update, bin_number: str) -> None:
             f"🏦 *Bank*: {bank}\n"
             f"{flag} *Country*: {country_name}\n"
             f"✅ *Bot by*: @Hellfirez3643\n"
-            f"```"
-        )
-        await update.message.reply_text(message, parse_mode="MarkdownV2")
-    except requests.Timeout:
-        await update.message.reply_text("⏳ Request timed out. Please try again later.")
-    except requests.RequestException as e:
-        if response.status_code == 429:
-            await update.message.reply_text("⏱️ Rate limit reached. Please wait and try again.")
-        else:
-            await update.message.reply_text(f"❌ Error checking BIN: {str(e)}")
-    except (ValueError, IndexError):
-        await update.message.reply_text("❌ Invalid response from BIN API or BIN not found.")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Unexpected error: {str(e)}")
-
-async def generate_cc_process(update: Update, bin_number: str) -> None:
-    try:
-        if not bin_number.isdigit() or len(bin_number) < 6:
-            await update.message.reply_text("❌ Invalid BIN. Please provide a 6-digit number.")
-            return
-        
-        # Fetch country info from API
-        headers = {"X-Api-Key": API_KEY}
-        response = requests.get(BIN_API_URL.format(bin_number), headers=headers, timeout=5)
-        response.raise_for_status()
-        data = response.json()[0]
-        logger.info(f"API Response for BIN {bin_number} (gen): {data}")
-
-        def escape_md(text):
-            if not text:
-                return "Unknown"
-            chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-            for char in chars:
-                text = str(text).replace(char, f'\{char}')
-            return text
-
-        country_name = escape_md(data.get("country", "Unknown"))
-        country_code = data.get("country_code", "??").lower()
-        flag = "".join([chr(0x1F1E6 + ord(c) - ord('a')) for c in country_code]) if country_code != "??" else "🌐"
-
-        # Generate CC numbers
-        cc_numbers = generate_cc(bin_number, count=10)
-
-        message = (
-            f"```\n"
-            f"📒 *BIN*: {escape_md(bin_number)}\n"
-            f"{flag} *Country*: {country_name}\n"
-            f"💳 *Generated CC Numbers*:\n" +
-            "\n".join([f"  • {escape_md(cc)}" for cc in cc_numbers]) + "\n"
-            f"✅ *Bot by*: @Hellfirez3643\n"
-            f"```"
-        )
-        await update.message.reply_text(message, parse_mode="MarkdownV2")
-    except requests.Timeout:
-        await update.message.reply_text("⏳ Request timed out. Please try again later.")
-    except requests.RequestException as e:
-        if response.status_code == 429:
-            await update.message.reply_text("⏱️ Rate limit reached. Please wait and try again.")
-        else:
-            await update.message.reply_text(f"❌ Error generating CC: {str(e)}")
-    except (ValueError, IndexError):
-        await update.message.reply_text("❌ Invalid response from BIN API or BIN not found.")
-    except Exception as e:
-        await update.message.reply_text(f"❌ Error generating CC: {str(e)}")
-
-# Webhook handler
-async def webhook(request: Request) -> Response:
-    update = Update.de_json(await request.json(), application.bot)
-    if update:
-        await application.process_update(update)
-    return Response(status_code=200)
-
-# Health check endpoint
-async def health(request: Request) -> Response:
-    return Response(content="OK", status_code=200)
-
-# Application setup
-application = Application.builder().token(TOKEN).build()
-application.add_handler(CommandHandler("start", start))
-application.add_handler(CommandHandler("bin", check_bin_command))
-application.add_handler(CommandHandler("gen", generate_cc_command))
-application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, lambda update, context: check_bin_message(update, context) if update.message.text.startswith(".bin") else generate_cc_message(update, context)))
-
-# Startup and shutdown for Starlette
-async def startup():
-    await application.initialize()
-    await application.start()
-    await application.bot.set_webhook(url=WEBHOOK_URL)
-    logger.info(f"Webhook set to {WEBHOOK_URL}")
-
-async def shutdown():
-    await application.stop()
-    await application.shutdown()
-
-# Starlette app setup
-routes = [
-    Route(f"/{TOKEN}", webhook, methods=["POST"]),
-    Route("/health", health, methods=["GET"])
-]
-app = Starlette(routes=routes, on_startup=[startup], on_shutdown=[shutdown])
-
-# Run the application
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
+            f"``
