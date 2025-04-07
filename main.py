@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Configuration
-TOKEN = os.getenv("TOKEN", "7881163673:AAGgNQwfX6MYMAyOKLrdZkp2hoDCLUa4OEU")
+TOKEN = os.getenv("TOKEN")
 BIN_API_URL = "https://api.api-ninjas.com/v1/bin?bin={}"
 API_KEY = "lQiHO34dFj8jY4xYNacj3g==oyNatSR2JdLDlWLw"
 WEBHOOK_URL = os.getenv("RENDER_EXTERNAL_URL", f"https://bin-bot-kqa8.onrender.com") + f"/{TOKEN}"
